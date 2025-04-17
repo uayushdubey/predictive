@@ -3,220 +3,209 @@ import pandas as pd
 import os
 import sys
 import datetime
-import calendar
+import logging
+import smtplib
+from collections import Counter
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from textblob import TextBlob
+from sklearn.cluster import KMeans
+from sklearn.feature_extraction.text import TfidfVectorizer
+
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(root_dir)
-from Continuous_learning_and_feedback.feedback import send_feedback_session_invitation
-from Continuous_learning_and_feedback.alert import send_alert
 
+def send_alert(avg_rating, rating_threshold, negative_feedback_count, negative_feedback_threshold):
+    sender_email = "app.technicalteam@gmail.com"
+    receiver_email = "usaksham01@gmail.com"
+    password = os.environ.get('EMAIL_PASSWORD')
+    subject = f"User Feedback Alert - System Approaching Thresholds"
 
-def update_police_allocation():
+    body = f"""
+    Dear Engineering Team,
 
-    with st.expander("**Update Police Resources**",expanded=False):
-        st.subheader("Police Resource Allocation Updation")
+    Our user feedback monitoring system has detected that one or more of the configured thresholds has been approached or exceeded.
 
-        # Ask user if they want to update the resource allocation
-        update_needed = st.checkbox("Do you want to update the police resource allocation?")
+    1. Average User Rating Threshold:
+      ->Current Average Rating: {avg_rating}
+      ->Threshold: {rating_threshold}
 
-        if update_needed:
-            data_file_path = os.path.join(root_dir, 'Component_datasets', 'Resource_Allocation_Cleaned.csv')
-            df = pd.read_csv(data_file_path)
-            # Get the list of units
-            units = df["District Name"].unique()
+    2. Negative Feedback Threshold:
+      ->Current Negative Feedback Count: {negative_feedback_count}
+      ->Threshold: {negative_feedback_threshold}
 
-            # Ask user to select the unit they want to update
-            selected_unit = st.selectbox("Select the unit you want to update:", units)
+    Please review the user feedback data and submit an action plan within the next 24 hours.
 
-            # Get the current allocation for the selected unit
-            current_allocation = df[df["District Name"] == selected_unit]
-            current_asi = current_allocation["Sanctioned Strength of Assistant Sub-Inspectors per District"].iloc[0]
-            current_chc = current_allocation["Sanctioned Strength of Head Constables per District"].iloc[0]
-            current_cpc = current_allocation["Sanctioned Strength of Police Constables per District"].iloc[0]
+    Best regards,
+    The User Feedback Monitoring System
+    """
 
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("Current Police Resource Allocation")
-                data = {"Unit": [selected_unit], "ASI": [current_asi], "CHC": [current_chc], "CPC": [current_cpc]}
-                existing_df = pd.DataFrame(data)
-                st.table(existing_df)
+    attachment_path = os.path.join(root_dir, "Component_datasets", "Feedback.csv")
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = receiver_email
+    message["Subject"] = subject
+    message.attach(MIMEText(body, "plain"))
 
-            with col2:
-                st.subheader("Update Police Resource Allocation")
-                new_asi = st.number_input(f"Enter the new ASI count for {selected_unit}", min_value=int(0.7*current_asi), max_value=int(1.5*current_asi), step=1, value=int(current_asi))
-                new_chc = st.number_input(f"Enter the new CHC count for {selected_unit}", min_value=int(0.7*current_chc), max_value=int(1.5*current_chc), step=1, value=int(current_chc))
-                new_cpc = st.number_input(f"Enter the new CPC count for {selected_unit}", min_value=int(0.7*current_cpc), max_value=int(1.5*current_cpc), step=1, value=int(current_cpc))
-                confirm_update = st.button(f"Confirm Update for {selected_unit}")
+    with open(attachment_path, "rb") as attachment:
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(attachment.read())
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", f"attachment; filename={os.path.basename(attachment_path)}")
+        message.attach(part)
 
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(sender_email, password)
+            server.send_message(message)
+            logging.info("E-mail alert sent successfully")
+            st.success(f"Alert report email ✉️ has been sent to {receiver_email}.")
+            st.warning("📬 Haven't received the email invitation? Check your spam folder!")
+    except Exception as e:
+        logging.error(f"Error sending email: {e}")
+        st.error("An error occurred while sending the email alerts.")
 
+def send_feedback_session_invitation(session_date, session_time, email_addresses):
+    sender_email = "app.technicalteam@gmail.com"
+    password = os.environ.get('EMAIL_PASSWORD')
 
+    for email_address in email_addresses:
+        subject = f"Invitation: Predictive Guardians Feedback Session on {session_date.strftime('%B %d, %Y')} at {session_time.strftime('%I:%M %p')}"
+        body = f"""
+        Dear Stakeholder,
 
-            if confirm_update:
-                # Update the dataframe with the new values
-                df.loc[df["District Name"] == selected_unit, "Sanctioned Strength of Assistant Sub-Inspectors per District"] = new_asi
-                df.loc[df["District Name"] == selected_unit, "Sanctioned Strength of Head Constables per District"] = new_chc
-                df.loc[df["District Name"] == selected_unit, "Sanctioned Strength of Police Constables per District"] = new_cpc
+        You are invited to the Predictive Guardians Feedback Session on {session_date} at {session_time}.
 
-                st.success(f"Police resource allocation for {selected_unit} has been updated.")
+        Please let us know if you can attend the session.
 
+        Best regards,
+        The Predictive Guardians Team
+        """
 
+        attachment_path = os.path.join(root_dir, "Component_datasets", "Feedback.csv")
+        message = MIMEMultipart()
+        message["From"] = sender_email
+        message["To"] = email_address
+        message["Subject"] = subject
+        message.attach(MIMEText(body, "plain"))
 
-def display_alert_meter(avg_rating, negative_feedback_count):
-    with st.expander("**Live Feedback Monitoring and Alert Meter**", expanded=False):
-        rating_threshold = 3.5
-        negative_feedback_threshold = 20
+        with open(attachment_path, "rb") as attachment:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f"attachment; filename={os.path.basename(attachment_path)}")
+            message.attach(part)
 
-        rating_percentage = (avg_rating / rating_threshold) 
-        negative_feedback_percentage = (negative_feedback_count / negative_feedback_threshold) 
+        try:
+            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                server.starttls()
+                server.login(sender_email, password)
+                server.send_message(message)
+                logging.info("E-mail invitation sent successfully")
+                st.success(f"Feedback session invitation email ✉️ has been sent to {email_address}.")
+                st.warning("📬 Haven't received the email invitation? Check your spam folder!")
+        except Exception as e:
+            logging.error(f"Error sending email: {e}")
+            st.error("An error occurred while sending the email invitation.")
 
-        st.subheader("Alert Meter")
-        col1, col2 = st.columns(2)
+def analyze_sentiments(feedback_df):
+    feedback_df['Sentiment'] = feedback_df['Feedback Comments'].apply(lambda x: TextBlob(str(x)).sentiment.polarity)
+    feedback_df['Sentiment_Label'] = feedback_df['Sentiment'].apply(lambda x: 'Positive' if x > 0.2 else ('Negative' if x < -0.2 else 'Neutral'))
+    return feedback_df
 
-        with col1:
-            st.progress(rating_percentage, text=f"Avg. Rating: {avg_rating:.2f}")
-        with col2:
-            st.progress(negative_feedback_percentage, text=f"Negative Feedback: {negative_feedback_count}/{negative_feedback_threshold}")
+def cluster_feedback(feedback_df, n_clusters=3):
+    vectorizer = TfidfVectorizer(stop_words='english')
+    X = vectorizer.fit_transform(feedback_df['Feedback Comments'].astype(str))
+    model = KMeans(n_clusters=n_clusters, random_state=42)
+    model.fit(X)
+    feedback_df['Cluster'] = model.labels_
+    return feedback_df
 
-        if rating_percentage >= 1.0 or negative_feedback_percentage >= 0.9:
-            st.warning("The system is approaching the alert threshold. Please review the user feedback.")
-            send_alert(avg_rating, rating_threshold, negative_feedback_count, negative_feedback_threshold)
-        else:
-            st.success("The system is performing well based on the user feedback.")
-        
-        st.markdown("**Note:** When the alert meter bars gets fulled, automatic e-mail alert reports will be sent to the technical lead to resolve the issue")
+def summarize_feedback(df):
+    st.subheader("📋 Feedback Summary")
+    st.write("Total Feedback:", len(df))
+    st.write("Average Rating:", round(df['Feedback Rating'].mean(), 2))
+    negative_comments = df[df['Sentiment_Label'] == 'Negative']['Feedback Comments'].astype(str).str.cat(sep=' ')
+    common_issues = Counter(negative_comments.split()).most_common(5)
+    st.write("Top Complaint Keywords:", [word for word, count in common_issues])
+    st.dataframe(df)
+
+def add_feedback_form(data_file_path):
+    st.sidebar.header("➕ Add New Feedback")
+    with st.sidebar.form("feedback_form"):
+        user_name = st.text_input("Name")
+        feedback_rating = st.slider("Rating (1 to 5)", 1, 5, 3)
+        feedback_comments = st.text_area("Comments")
+        feedback_type = st.selectbox("Feedback Type", ["Bug", "Feature Request", "General Feedback"])
+        submitted = st.form_submit_button("Submit Feedback")
+
+        if submitted and user_name and feedback_comments:
+            new_feedback = pd.DataFrame({
+                'Name': [user_name],
+                'Feedback Rating': [feedback_rating],
+                'Feedback Comments': [feedback_comments],
+                'Feedback Type': [feedback_type],
+                'Timestamp': [datetime.datetime.now()]
+            })
+
+            if os.path.exists(data_file_path):
+                existing_data = pd.read_csv(data_file_path)
+                updated_data = pd.concat([existing_data, new_feedback], ignore_index=True)
+            else:
+                updated_data = new_feedback
+
+            updated_data.to_csv(data_file_path, index=False)
+            st.sidebar.success("✅ Feedback submitted successfully!")
+            st.session_state["feedback_submitted"] = True  # Store the state of the feedback submission
 
 def continuous_learning_and_feedback():
-    st.title("Continuous Learning and Feedback")
+    if "feedback_submitted" in st.session_state and st.session_state["feedback_submitted"]:
+        st.experimental_rerun()  # Trigger a rerun to reflect new feedback data
 
-    st.text("Explore all the options below:")
-
-    
-    update_police_allocation()
+    st.title("🏡 Continuous Learning and Feedback Dashboard")
 
     data_file_path = os.path.join(root_dir, 'Component_datasets', 'Feedback.csv')
+    if not os.path.exists(data_file_path):
+        st.warning("⚠️ Feedback data file not found.")
+        return
+
+    add_feedback_form(data_file_path)
+
     feedback_data = pd.read_csv(data_file_path)
+
+    feedback_data = analyze_sentiments(feedback_data)
+    feedback_data = cluster_feedback(feedback_data)
+
+    summarize_feedback(feedback_data)
 
     avg_rating = feedback_data["Feedback Rating"].mean()
     negative_feedback_count = len(feedback_data[feedback_data["Feedback Rating"] < 3])
 
-    display_alert_meter(avg_rating, negative_feedback_count)
+    rating_threshold = 3.5
+    negative_feedback_threshold = 20
 
-    # User Feedback Mechanism
-    with st.expander("**Provide Feedback**", expanded=False):
-        feedback_form = st.form(key="feedback_form")
-        feedback_type = feedback_form.selectbox("Select Feedback Type", ["Crime Pattern Analysis", "Criminal Profiling", "Predictive Modeling", "Resource Allocation"])
-        feedback_rating = feedback_form.slider("Rate the accuracy and usefulness of the system's output", min_value=1, max_value=5, value=3)
-        feedback_comments = feedback_form.text_area("Additional Comments")
-        submit_feedback = feedback_form.form_submit_button("Submit Feedback")
+    rating_percentage = avg_rating / rating_threshold
+    negative_feedback_percentage = negative_feedback_count / negative_feedback_threshold
 
-        if submit_feedback:
-            # Collect and store the feedback data
-            feedback_data = {
-                "Feedback Type": feedback_type,
-                "Feedback Rating": feedback_rating,
-                "Feedback Comments": feedback_comments
-            }
-            store_feedback_data(feedback_data)
-            st.success("Thank you for your feedback!")
+    st.write(f"Avg. Rating: {avg_rating:.2f}, Negative Feedback Count: {negative_feedback_count}")
 
-    # Knowledge Capture and Documentation
-    with st.expander("**Knowledge Base**", expanded=False):   
-        st.write("Insights and lessons learned from the continuous feedback process are documented here.")
-        display_knowledge_base(feedback_data)
+    st.subheader("🔹 Alert Meter")
+    col1, col2 = st.columns(2)
 
-    # Collaborative Learning
-    with st.expander("**Feedback Sessions Invitation**", expanded=False):
-        organize_feedback_sessions()
+    with col1:
+        st.progress(rating_percentage, text=f"Avg. Rating: {avg_rating:.2f}")
+    with col2:
+        st.progress(negative_feedback_percentage, text=f"Negative Feedback: {negative_feedback_count}/{negative_feedback_threshold}")
 
+    if rating_percentage >= 1.0 or negative_feedback_percentage >= 0.9:
+        st.warning("The system is approaching the alert threshold. Please review the user feedback.")
+        send_alert(avg_rating, rating_threshold, negative_feedback_count, negative_feedback_threshold)
+    else:
+        st.success("The system is performing well based on the user feedback.")
 
-    # Transparency and Explainability
-    #st.subheader("Model Explanations")
-    #st.write("Detailed explanations are provided for the system's predictions and recommendations.")
-    # display_model_explanations(recidivism_model, crime_type_model, hotspot_model)
-
-def store_feedback_data(feedback_data):
-    # Save the feedback data to a file or database
-    feedback_file_path = os.path.join(root_dir, 'Component_datasets', 'Feedback.csv')
-    try:
-        feedback_df = pd.read_csv(feedback_file_path)
-        feedback_df = feedback_df.append(feedback_data, ignore_index=True)
-        feedback_df.to_csv(feedback_file_path, index=False)
-    except FileNotFoundError:
-        feedback_df = pd.DataFrame([feedback_data])
-        feedback_df.to_csv(feedback_file_path, index=False)
-
-def display_knowledge_base(feedback_data):
-    # Load and display the knowledge base document
-    st.table(feedback_data)
-
-def organize_feedback_sessions():
-    st.markdown("### Organize Feedback Sessions")
-
-    # Get user input for feedback session details
-    session_date = st.date_input("Select Feedback Session Date")
-    session_time = st.time_input("Select Feedback Session Time")
-
-    # Display stakeholder management interface
-    st.subheader("Manage Stakeholders")
-    stakeholders = get_stakeholder_contact_info()
-    stakeholder_table = st.dataframe(stakeholders)
-
-    if "stakeholders" not in st.session_state:
-        st.session_state.stakeholders = stakeholders
-
-    # Allow user to add, edit, or remove stakeholders
-    new_stakeholder_name = st.text_input("Add New Stakeholder Name")
-    new_stakeholder_position = st.text_input("Add New Stakeholder's Position")
-    new_stakeholder_email = st.text_input("Add New Stakeholder Email")
-    if st.button("Add Stakeholder"):
-        st.session_state.stakeholders.append({"name": new_stakeholder_name, "Position": new_stakeholder_position, "email": new_stakeholder_email})
-        stakeholder_table.dataframe(st.session_state.stakeholders)
-        st.dataframe(st.session_state.stakeholders)
-
-
-    # Allow user to select stakeholders to invite
-    selected_stakeholders = st.multiselect("Select Stakeholders to Invite", [s["name"] for s in st.session_state.stakeholders])
-
-    st.markdown("**Note**: After selecting the stakeholders for invitation, click outside the dropdown menu or press the 'Esc' key to close the dropdown.")
-    # Send feedback session invitation
-    if st.button("Send Invitation mail"):
-        # Initialize an empty list to collect email addresses
-        email_addresses = []
-
-        # Iterate over each stakeholder dictionary
-        for stakeholder in st.session_state.stakeholders:
-            # Extract the email address from the current stakeholder dictionary
-            email_addresses.append(stakeholder["email"])
-
-        send_feedback_session_invitation(session_date, session_time, email_addresses)
-
-
-
-# def get_next_feedback_session_date():
-#     # Set the feedback session to be held on the first Monday of the month
-#     target_weekday = calendar.MONDAY
-#     now = datetime.datetime.now()
-#     days_until_target = (target_weekday - now.weekday()) % 7
-#     next_session_date = now + datetime.timedelta(days=days_until_target)
-#     return next_session_date
-
-def get_stakeholder_contact_info():
-    # Retrieve the list of stakeholders and their contact information (e.g., from a database or a CSV file)
-    stakeholders = [
-        {"name": "Vishal",  "Position": "Technical Lead", "email": "vishalkumars.work@gmail.com"},
-    ]
-    return stakeholders
-
-
-# def display_model_explanations(recidivism_model, crime_type_model, hotspot_model):
-#     # Provide detailed explanations for the predictions and recommendations of the models
-#     display_recidivism_model_explanations(recidivism_model)
-#     display_crime_type_model_explanations(crime_type_model)
-#     display_hotspot_model_explanations(hotspot_model)
-
-
-
-
-
-
-
-
+# Initialize app
+if __name__ == "__main__":
+    continuous_learning_and_feedback()

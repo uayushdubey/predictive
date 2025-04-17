@@ -1,4 +1,9 @@
+import streamlit as st
+import pandas as pd
+import os
 import requests
+import time
+from streamlit_extras.stylable_container import stylable_container
 
 from Continuous_Learning_and_Feedback import *
 from Crime_Pattern_Analysis import *
@@ -9,10 +14,29 @@ from Resource_Allocation import *
 # Set root directory
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
-# Sidebar menu using emojis
+# --------------- Session State Initialization ----------------
+if 'page_loaded' not in st.session_state:
+    st.session_state.page_loaded = False
+
+if 'selected_page' not in st.session_state:
+    st.session_state.selected_page = "Home"
+
+# ------------------ Initial Welcome Screen ------------------
+if not st.session_state.page_loaded:
+    st.markdown("""
+        <div style="height:100vh; display:flex; justify-content:center; align-items:center; flex-direction:column;">
+            <h1 style="font-size: 3em; color: #2c3e50;">👮‍♂️ Welcome to <span style="color:#007bff;">Predictive Guardians</span></h1>
+            <p style="font-size: 1.2em;">AI-Powered Crime Intelligence and Resource Optimization Platform</p>
+        </div>
+    """, unsafe_allow_html=True)
+    time.sleep(2.5)
+    st.session_state.page_loaded = True
+    st.rerun()
+
+# ------------------ Sidebar Menu ------------------
 with st.sidebar:
     st.markdown("## 🛡️ Predictive Guardians")
-    selected = st.radio("Navigate", [
+    selected = st.radio("📌 Navigate to", [
         '🏠 Home',
         '📊 Crime Pattern Analysis',
         '🧬 Criminal Profiling',
@@ -21,39 +45,41 @@ with st.sidebar:
         '🔄 Continuous Learning and Feedback',
         '📚 Documentation and Resources'
     ])
+    st.markdown("<hr style='margin-top:20px; border-color:#ccc;'>", unsafe_allow_html=True)
 
-# Helper to clean emoji prefix
 selected_clean = selected.split(' ', 1)[1] if ' ' in selected else selected
 
-# ------------------ Home ------------------
+# ------------------ Home Page ------------------
 if selected_clean == "Home":
-    st.title("Welcome to Predictive Guardians 🚔💻")
+    st.title("🚔 Welcome to Predictive Guardians")
 
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([1.2, 1])
 
     with col1:
         st.markdown("""
-        Predictive Guardians is an innovative, AI-powered solution that revolutionizes the way law enforcement agencies approach public safety. By utilizing advanced data analysis and machine learning, my platform empowers agencies to make data-driven decisions, enabling them to allocate resources more efficiently and effectively.
+        <div style="text-align: justify; font-size: 1.1em;">
+        <p><strong>Predictive Guardians</strong> is a next-gen platform empowering law enforcement with data-driven insights for proactive safety and smarter policing.</p>
 
-        Predictive Guardians provides law enforcement agencies with the insights and actionable intelligence they need to stay one step ahead of criminals. My solution covers a comprehensive suite of analytical tools, including:
+        <p>Explore a comprehensive suite of intelligent tools:</p>
+        <ul>
+            <li><strong>Crime Pattern Analysis</strong>: Discover trends via spatial and temporal mapping.</li>
+            <li><strong>Criminal Profiling</strong>: Uncover behavioral patterns to prevent crime more effectively.</li>
+            <li><strong>Predictive Modeling</strong>: Forecast future crime occurrences for preemptive actions.</li>
+            <li><strong>Resource Allocation</strong>: Strategize deployment of police units using AI recommendations.</li>
+            <li><strong>Continuous Learning</strong>: Feedback loops, alerts, collaborative sessions & documentation.</li>
+        </ul>
 
-        - **Crime Pattern Analysis**: Uncover hidden insights and trends through spatial, temporal, and cluster-based analysis.
-        - **Criminal Profiling**: Develop targeted crime prevention strategies by understanding the characteristics and behavioral patterns of offenders.
-        - **Predictive Modeling**: Forecast future crime trends and patterns, enabling proactive resource allocation and intervention.
-        - **Resource Allocation**: Optimize the deployment of police personnel to ensure efficient and effective utilization of law enforcement resources.
-        - **Continuous Learning and Feedback**: Facilitate ongoing system improvement by incorporating user feedbacks, alerts, organizing collaborative learning sessions, and maintaining a knowledge base to document insights and lessons learned.
+        <p>Let’s redefine public safety with <span style="color: #007bff;"><strong>AI and foresight</strong></span>.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        Join me on this transformative journey as we redefine the future of public safety and ensure that our communities are safe, secure, and resilient. With Predictive Guardians, the path to a safer tomorrow is within reach.
-        """)
-        if st.button("Learn More"):
-            st.session_state.selected_page = "Documentation and Resources"
-            st.experimental_rerun()
+        if st.button("🚀 Explore the Tools"):
+            st.session_state.selected_page = "Crime Pattern Analysis"
+            st.rerun()
 
     with col2:
         image_path = os.path.join(root_dir, 'assets', 'Home_Page_image.jpg')
         st.image(image_path, use_container_width=True)
-
-# ------------------ Documentation ------------------
 
 # ------------------ Crime Pattern Analysis ------------------
 if selected_clean == "Crime Pattern Analysis":
@@ -71,14 +97,13 @@ if selected_clean == "Crime Pattern Analysis":
 
     mean_lat, mean_lon, geojson_data, crime_pattern_analysis = load_data()
 
-    st.subheader("Temporal Analysis of Crime Data")
+    st.subheader("📅 Temporal Analysis of Crime Data")
     temporal_analysis(crime_pattern_analysis)
 
-    st.subheader("Choropleth Maps")
+    st.subheader("🗺️ Choropleth Maps")
     chloropleth_maps(crime_pattern_analysis, geojson_data, mean_lat, mean_lon)
 
-    st.subheader("Crime Hotspot Map")
-    crime_pattern_analysis = crime_pattern_analysis.reset_index(drop=True)
+    st.subheader("🔥 Crime Hotspot Map")
     crime_pattern_analysis['Date'] = pd.to_datetime(crime_pattern_analysis[['Year', 'Month', 'Day']])
     mean_lat_sampled = crime_pattern_analysis['Latitude'].mean()
     mean_lon_sampled = crime_pattern_analysis['Longitude'].mean()

@@ -7,48 +7,52 @@ import streamlit.components.v1 as components
 from folium.plugins import HeatMap
 from sklearn.cluster import DBSCAN
 
-
 def temporal_analysis(crime_pattern_analysis):
-    st.write("##### Instructions")
-    st.write("1. Select the desired Districts and Crime Groups from the dropdown menus below.")
-    st.write("2. After making your selection, click outside the dropdown menu or press the 'Esc' key to close the dropdown.")
+    with st.container():
+        st.markdown("### 📅 Temporal Crime Analysis", unsafe_allow_html=True)
+        st.markdown("<p style='color:gray;'>Filter crimes by District, Group, and Time Granularity.</p>", unsafe_allow_html=True)
 
-    district_options = ["All Districts"] + sorted(crime_pattern_analysis["District_Name"].unique())
-    selected_districts = st.multiselect("Select Districts", district_options, default=[])
+        col1, col2, col3 = st.columns([2, 2, 1])
 
-    crime_group_options = ["All Crime Groups"] + sorted(crime_pattern_analysis["CrimeGroup_Name"].unique())
-    selected_crime_groups = st.multiselect("Select Crime Groups", crime_group_options, default=[])
+        with col1:
+            district_options = ["All Districts"] + sorted(crime_pattern_analysis["District_Name"].unique())
+            selected_districts = st.multiselect("🏙️ Select District(s)", district_options, default=[])
 
-    selected_time_granularity = st.radio("Select Time Granularity", ["Year", "Month", "Day"])
+        with col2:
+            crime_group_options = ["All Crime Groups"] + sorted(crime_pattern_analysis["CrimeGroup_Name"].unique())
+            selected_crime_groups = st.multiselect("🚨 Select Crime Group(s)", crime_group_options, default=[])
 
-    if "All Districts" in selected_districts and "All Crime Groups" in selected_crime_groups:
+        with col3:
+            selected_time_granularity = st.radio("🕒 Granularity", ["Year", "Month", "Day"], horizontal=True)
+
         filtered_df = crime_pattern_analysis.copy()
-    else:
-        filtered_df = crime_pattern_analysis[
-            (crime_pattern_analysis["District_Name"].isin(selected_districts) if selected_districts != ["All Districts"] else True) &
-            (crime_pattern_analysis["CrimeGroup_Name"].isin(selected_crime_groups) if selected_crime_groups != ["All Crime Groups"] else True)
-        ]
+        if "All Districts" not in selected_districts and selected_districts:
+            filtered_df = filtered_df[filtered_df["District_Name"].isin(selected_districts)]
 
-    if filtered_df.empty:
-        st.warning("Choose the desired Districts and Crime Groups from the above filters")
-    else:
-        if selected_time_granularity == "Year":
-            data = filtered_df.groupby(["Year", "District_Name", "CrimeGroup_Name"]).size().reset_index(name="Count")
-            fig = px.bar(data, x="Year", y="Count", color="District_Name", barmode="group", hover_data=["CrimeGroup_Name"])
-        elif selected_time_granularity == "Month":
-            data = filtered_df.groupby(["Month", "District_Name", "CrimeGroup_Name"]).size().reset_index(name="Count")
-            fig = px.bar(data, x="Month", y="Count", color="District_Name", barmode="group", hover_data=["CrimeGroup_Name"])
-        elif selected_time_granularity == "Day":
-            data = filtered_df.groupby(["Day", "District_Name", "CrimeGroup_Name"]).size().reset_index(name="Count")
-            fig = px.bar(data, x="Day", y="Count", color="District_Name", barmode="group", hover_data=["CrimeGroup_Name"])
+        if "All Crime Groups" not in selected_crime_groups and selected_crime_groups:
+            filtered_df = filtered_df[filtered_df["CrimeGroup_Name"].isin(selected_crime_groups)]
 
-        fig.update_layout(xaxis_title=selected_time_granularity, yaxis_title="Count")
-        st.plotly_chart(fig, use_container_width=True)
+        if filtered_df.empty:
+            st.warning("⚠️ No data available for the selected filters.")
+        else:
+            group_by_cols = {
+                "Year": "Year",
+                "Month": "Month",
+                "Day": "Day"
+            }
+            group_col = group_by_cols[selected_time_granularity]
+            data = filtered_df.groupby([group_col, "District_Name", "CrimeGroup_Name"]).size().reset_index(name="Count")
 
+            fig = px.bar(
+                data, x=group_col, y="Count", color="District_Name", barmode="group",
+                hover_data=["CrimeGroup_Name"],
+                title=f"{selected_time_granularity}-wise Crime Count"
+            )
+            fig.update_layout(xaxis_title=selected_time_granularity, yaxis_title="Count", template="plotly_white")
+            st.plotly_chart(fig, use_container_width=True)
 
 def crime_hotspot_analysis(df, mean_lat, mean_lon):
     m = folium.Map(location=[mean_lat, mean_lon], zoom_start=7)
-
     colormap = cm.LinearColormap(colors=['blue', 'yellow', 'red'], vmin=0, vmax=df['Count'].max())
 
     HeatMap(df[['Latitude', 'Longitude', 'Count']].values.tolist(),
@@ -73,96 +77,87 @@ def crime_hotspot_analysis(df, mean_lat, mean_lon):
 
     colormap.add_to(m)
     colormap.caption = 'Crime Density'
-
     return m
 
-
 def crime_hotspots(crime_pattern_analysis, mean_lat, mean_lon):
-    dates = st.radio("Select Date Range", ["All", "Custom Date Range"])
+    st.markdown("### 🔥 Crime Hotspot Map")
+    st.markdown("<p style='color:gray;'>Visualize crime clusters and heatmap by date and type.</p>", unsafe_allow_html=True)
 
-    if dates == "All":
-        date_range = (crime_pattern_analysis['Date'].min(), crime_pattern_analysis['Date'].max())
-    else:
-        date_range = st.date_input("Select date range",
-                                   [crime_pattern_analysis['Date'].min(), crime_pattern_analysis['Date'].max()],
-                                   key='date_range')
+    col1, col2 = st.columns([1.5, 2])
 
-    if len(date_range) != 2:
-        st.stop()
+    with col1:
+        dates = st.radio("📆 Date Filter", ["All", "Custom Date Range"], horizontal=True)
+        if dates == "All":
+            date_range = (crime_pattern_analysis['Date'].min(), crime_pattern_analysis['Date'].max())
+        else:
+            date_range = st.date_input("Select date range",
+                                       [crime_pattern_analysis['Date'].min(), crime_pattern_analysis['Date'].max()],
+                                       key='date_range')
+            if len(date_range) != 2:
+                st.stop()
 
-    crime_types = st.multiselect("Select crime types", crime_pattern_analysis['CrimeGroup_Name'].unique())
-
-    if len(crime_types) == 0:
-        st.warning("Choose the desired Crime Groups from the above filters to see the map")
+    with col2:
+        crime_types = st.multiselect("🔍 Crime Group(s)", crime_pattern_analysis['CrimeGroup_Name'].unique())
 
     filtered_data = crime_pattern_analysis[
         (crime_pattern_analysis['Date'] >= pd.Timestamp(date_range[0])) &
         (crime_pattern_analysis['Date'] <= pd.Timestamp(date_range[1]))
     ]
+
     if crime_types:
         filtered_data = filtered_data[filtered_data['CrimeGroup_Name'].isin(crime_types)]
 
-    if st.button("Apply") and len(crime_types) != 0:
-        aggregated_data = filtered_data.groupby(['District_Name', 'UnitName', 'Latitude', 'Longitude', 'CrimeGroup_Name']).size().reset_index(name='Count')
+    if st.button("🔎 Show Hotspots") and not filtered_data.empty:
+        aggregated_data = filtered_data.groupby(['District_Name', 'UnitName', 'Latitude', 'Longitude', 'CrimeGroup_Name'])\
+                                       .size().reset_index(name='Count')
 
         mean_lat = aggregated_data['Latitude'].mean()
         mean_lon = aggregated_data['Longitude'].mean()
 
         m = crime_hotspot_analysis(aggregated_data, mean_lat, mean_lon)
-        map_html = m._repr_html_()
-        components.html(map_html, height=600)
+        st.components.v1.html(m._repr_html_(), height=600)
 
-        st.markdown("""
-        **How to interpret the map:**
-        - The heatmap shows the density of crimes. Red areas have more crimes.
-        - Markers on the interactive map show the centers of high-crime clusters.
-        - Use the date range and crime type filters to explore patterns over time and by crime category.
-        - Zoom in for more detail in specific areas.
-        """)
-
+        st.markdown("""<hr/>
+        ✅ <strong>How to read this map:</strong><br>
+        - Red zones = High density of crimes<br>
+        - Markers = Cluster centers<br>
+        - Filter the map by date and crime type above
+        """, unsafe_allow_html=True)
 
 def chloropleth_maps(df, geojson_data, mean_lat, mean_lon):
-    district_stats = df.groupby('District_Name').agg({'FIRNo': 'count', 'VICTIM COUNT': 'sum', 'Accused Count': 'sum'}).reset_index()
-    selected_stat = st.selectbox('Select Crime Statistic', ['Crime Incidents', 'Total Victim Count', 'Total Accused Count'])
+    st.markdown("### 🗏️ Choropleth Map Analysis")
+    st.markdown("<p style='color:gray;'>Choose a metric to visualize district-wise crime impact.</p>", unsafe_allow_html=True)
 
-    if selected_stat == 'Crime Incidents':
-        fig = px.choropleth_mapbox(district_stats,
-                                   geojson=geojson_data,
-                                   locations='District_Name',
-                                   featureidkey="properties.district",
-                                   color='FIRNo',
-                                   color_continuous_scale="Viridis",
-                                   mapbox_style="carto-positron",
-                                   zoom=5,
-                                   center={"lat": mean_lat, "lon": mean_lon},
-                                   opacity=0.5,
-                                   labels={'FIRNo': 'Crime Incidents'},
-                                   title='Choropleth Map: Crime Incidents by District')
-    elif selected_stat == 'Total Victim Count':
-        fig = px.choropleth_mapbox(district_stats,
-                                   geojson=geojson_data,
-                                   locations='District_Name',
-                                   featureidkey="properties.district",
-                                   color='VICTIM COUNT',
-                                   color_continuous_scale="Viridis",
-                                   mapbox_style="carto-positron",
-                                   zoom=5,
-                                   center={"lat": mean_lat, "lon": mean_lon},
-                                   opacity=0.5,
-                                   labels={'VICTIM COUNT': 'Total Victim Count'},
-                                   title='Choropleth Map: Total Victim Count by District')
-    else:
-        fig = px.choropleth_mapbox(district_stats,
-                                   geojson=geojson_data,
-                                   locations='District_Name',
-                                   featureidkey="properties.district",
-                                   color='Accused Count',
-                                   color_continuous_scale="Viridis",
-                                   mapbox_style="carto-positron",
-                                   zoom=5,
-                                   center={"lat": mean_lat, "lon": mean_lon},
-                                   opacity=0.5,
-                                   labels={'Accused Count': 'Total Accused Count'},
-                                   title='Choropleth Map: Total Accused Count by District')
+    district_stats = df.groupby('District_Name').agg({
+        'FIRNo': 'count',
+        'VICTIM COUNT': 'sum',
+        'Accused Count': 'sum'
+    }).reset_index()
 
-    st.plotly_chart(fig)
+    selected_stat = st.selectbox('📊 Crime Metric', ['Crime Incidents', 'Total Victim Count', 'Total Accused Count'])
+
+    color_column_map = {
+        'Crime Incidents': ('FIRNo', 'Crime Incidents'),
+        'Total Victim Count': ('VICTIM COUNT', 'Victim Count'),
+        'Total Accused Count': ('Accused Count', 'Accused Count')
+    }
+
+    color_col, label = color_column_map[selected_stat]
+
+    fig = px.choropleth_mapbox(
+        district_stats,
+        geojson=geojson_data,
+        locations='District_Name',
+        featureidkey="properties.district",
+        color=color_col,
+        color_continuous_scale="YlOrRd",
+        mapbox_style="carto-positron",
+        zoom=5,
+        center={"lat": mean_lat, "lon": mean_lon},
+        opacity=0.6,
+        labels={color_col: label},
+        title=f"{selected_stat} by District"
+    )
+
+    fig.update_layout(margin={"r":0,"t":30,"l":0,"b":0})
+    st.plotly_chart(fig, use_container_width=True)
