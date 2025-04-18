@@ -5,23 +5,43 @@ import requests
 import time
 from streamlit_extras.stylable_container import stylable_container
 
-from Continuous_Learning_and_Feedback import *
-from Crime_Pattern_Analysis import *
-from Criminal_Profiling import create_criminal_profiling_dashboard
-from Predictive_modeling import *
-from Resource_Allocation import *
+# ---- Safe Module Imports with Fallback Errors ----
+try:
+    from Continuous_Learning_and_Feedback import *
+except ModuleNotFoundError:
+    st.error("⚠️ Missing module: Continuous_Learning_and_Feedback.py")
 
-# Set root directory
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+try:
+    from Crime_Pattern_Analysis import *
+except ModuleNotFoundError:
+    st.error("⚠️ Missing module: Crime_Pattern_Analysis.py")
 
-# --------------- Session State Initialization ----------------
+try:
+    from Criminal_Profiling import create_criminal_profiling_dashboard
+except ModuleNotFoundError:
+    st.error("⚠️ Missing module: Criminal_Profiling.py")
+
+try:
+    from Predictive_modeling import *
+except ModuleNotFoundError:
+    st.error("⚠️ Missing module: Predictive_modeling.py")
+
+try:
+    from Resource_Allocation import *
+except ModuleNotFoundError:
+    st.error("⚠️ Missing module: Resource_Allocation.py")
+
+# ---- Set root directory ----
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '.'))
+
+# ---- Session State Initialization ----
 if 'page_loaded' not in st.session_state:
     st.session_state.page_loaded = False
 
 if 'selected_page' not in st.session_state:
     st.session_state.selected_page = "Home"
 
-# ------------------ Initial Welcome Screen ------------------
+# ---- Initial Welcome Screen ----
 if not st.session_state.page_loaded:
     st.markdown("""
         <div style="height:100vh; display:flex; justify-content:center; align-items:center; flex-direction:column;">
@@ -33,7 +53,7 @@ if not st.session_state.page_loaded:
     st.session_state.page_loaded = True
     st.rerun()
 
-# ------------------ Sidebar Menu ------------------
+# ---- Sidebar Navigation ----
 with st.sidebar:
     st.markdown("## 🛡️ Predictive Guardians")
     selected = st.radio("📌 Navigate to", [
@@ -49,7 +69,7 @@ with st.sidebar:
 
 selected_clean = selected.split(' ', 1)[1] if ' ' in selected else selected
 
-# ------------------ Home Page ------------------
+# ---- Home Page ----
 if selected_clean == "Home":
     st.title("🚔 Welcome to Predictive Guardians")
 
@@ -79,10 +99,13 @@ if selected_clean == "Home":
 
     with col2:
         image_path = os.path.join(root_dir, 'assets', 'Home_Page_image.jpg')
-        st.image(image_path, use_container_width=True)
+        if os.path.exists(image_path):
+            st.image(image_path, use_container_width=True)
+        else:
+            st.warning("📷 Home page image not found!")
 
-# ------------------ Crime Pattern Analysis ------------------
-if selected_clean == "Crime Pattern Analysis":
+# ---- Crime Pattern Analysis ----
+if selected_clean == "Crime Pattern Analysis" and 'temporal_analysis' in globals():
     @st.cache_data
     def load_data():
         url = "https://raw.githubusercontent.com/adarshbiradar/maps-geojson/master/states/karnataka.json"
@@ -93,7 +116,6 @@ if selected_clean == "Crime Pattern Analysis":
         mean_lat = crime_data['Latitude'].mean()
         mean_lon = crime_data['Longitude'].mean()
         return mean_lat, mean_lon, geojson_data, crime_data
-
 
     mean_lat, mean_lon, geojson_data, crime_pattern_analysis = load_data()
 
@@ -109,20 +131,23 @@ if selected_clean == "Crime Pattern Analysis":
     mean_lon_sampled = crime_pattern_analysis['Longitude'].mean()
     crime_hotspots(crime_pattern_analysis, mean_lat_sampled, mean_lon_sampled)
 
-# ------------------ Criminal Profiling ------------------
-if selected_clean == "Criminal Profiling":
+# ---- Criminal Profiling ----
+if selected_clean == "Criminal Profiling" and 'create_criminal_profiling_dashboard' in globals():
     create_criminal_profiling_dashboard()
 
-# ------------------ Predictive Modeling ------------------
-if selected_clean == "Predictive Modeling":
+# ---- Predictive Modeling ----
+if selected_clean == "Predictive Modeling" and 'predictive_modeling_recidivism' in globals():
     predictive_modeling_recidivism()
 
-# ------------------ Police Resource Allocation ------------------
-if selected_clean == "Police Resource Allocation and Management":
+# ---- Police Resource Allocation ----
+if selected_clean == "Police Resource Allocation and Management" and 'resource_allocation' in globals():
     data_path = os.path.join(root_dir, 'Component_datasets', 'Resource_Allocation_Cleaned.csv')
-    df = pd.read_csv(data_path)
-    resource_allocation(df)
+    if os.path.exists(data_path):
+        df = pd.read_csv(data_path)
+        resource_allocation(df)
+    else:
+        st.error("❌ Resource allocation dataset not found!")
 
-# ------------------ Continuous Learning and Feedback ------------------
-if selected_clean == "Continuous Learning and Feedback":
+# ---- Continuous Learning and Feedback ----
+if selected_clean == "Continuous Learning and Feedback" and 'continuous_learning_and_feedback' in globals():
     continuous_learning_and_feedback()
