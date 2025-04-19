@@ -14,5 +14,5 @@ h2o
 pulp
 imblearn
 streamlit-extras
-
+textblob
 
