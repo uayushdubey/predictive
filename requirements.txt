@@ -13,4 +13,6 @@ category_encoders
 h2o
 pulp
 imblearn
+streamlit-extras
+
 
