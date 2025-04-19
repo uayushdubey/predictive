@@ -15,4 +15,4 @@ pulp
 imblearn
 streamlit-extras
 textblob
-
+wordcloud
