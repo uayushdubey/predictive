@@ -1,7 +1,7 @@
 # 🔐 Recidivism Risk Prediction Using Machine Learning and Demographic Profiling
 
 🌐 **Live App**: [https://advancepredictions.streamlit.app/](https://advancepredictions.streamlit.app/)  
-📁 **GitHub Repo**: [https://github.com/uayushdubey/Recidivism_Risk_Prediction_Using_Machine-_Learning_and_Demographic_Profiling](https://github.com/uayushdubey/Recidivism_Risk_Prediction_Using_Machine-_Learning_and_Demographic_Profiling)
+📁 **GitHub Repo**: [https://github.com/uayushdubey/Recidivism_Risk_Prediction_Using_Machine_Learning_and_Demographic_Profiling](https://github.com/uayushdubey/Recidivism_Risk_Prediction_Using_Machine_Learning_and_Demographic_Profiling)
 
 Developed by **Ayush Dubey**, this project is a modular AI-powered dashboard that helps predict recidivism risk using machine learning and demographic profiling. It is designed to support data-driven decision-making in the criminal justice system by combining real-time feedback, crime pattern analysis, and behavioral insights.
 
